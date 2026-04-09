@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎩 Charlatan !</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ===== HOME ===== -->
+<div id="home-view" class="view active">
+  <div class="center-card">
+    <div class="logo">🎩</div>
+    <h1>Charlatan !</h1>
+    <p class="subtitle">Mentez. Bluffez. Triomphez.</p>
+    <input type="text" id="home-name" placeholder="Ton pseudo" maxlength="20" autocomplete="off">
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="createRoom()">Créer un salon</button>
+      <button class="btn btn-secondary" onclick="showJoin()">Rejoindre</button>
+    </div>
+    <div id="join-section" class="hidden">
+      <input type="text" id="join-code" placeholder="Code du salon (ex: AB3C)" maxlength="4" autocomplete="off" style="text-transform:uppercase; letter-spacing:4px; font-size:1.4rem; text-align:center;">
+      <button class="btn btn-accent" onclick="joinRoom()">Rejoindre la partie !</button>
+    </div>
+    <div id="home-error" class="error-msg hidden"></div>
+  </div>
+</div>
+
+<!-- ===== LOBBY ===== -->
+<div id="lobby-view" class="view">
+  <div class="lobby-container">
+    <div class="lobby-header">
+      <div class="logo-small">🎩</div>
+      <h2>Salon de jeu</h2>
+      <div class="room-code-display">
+        Code : <span id="room-code-text"></span>
+        <button class="btn-copy" onclick="copyCode()" title="Copier">📋</button>
+      </div>
+      <p class="lobby-hint">Partage ce code à tes amis !</p>
+    </div>
+
+    <div class="teams-container">
+      <div class="team-card team1-card">
+        <h3>🔵 Équipe 1</h3>
+        <div class="token-display">🪙 <span id="lobby-t1-tokens">16</span> jetons</div>
+        <div id="lobby-team1-players" class="player-list"></div>
+        <button class="btn btn-team1" onclick="chooseTeam('team1')">Rejoindre cette équipe</button>
+      </div>
+      <div class="team-card team2-card">
+        <h3>🔴 Équipe 2</h3>
+        <div class="token-display">🪙 <span id="lobby-t2-tokens">16</span> jetons</div>
+        <div id="lobby-team2-players" class="player-list"></div>
+        <button class="btn btn-team2" onclick="chooseTeam('team2')">Rejoindre cette équipe</button>
+      </div>
+    </div>
+
+    <div id="lobby-unassigned" class="unassigned-section hidden">
+      <p>⏳ En attente d'équipe :</p>
+      <div id="lobby-unassigned-players"></div>
+    </div>
+
+    <div id="start-section">
+      <button id="start-btn" class="btn btn-start hidden" onclick="startGame()">🚀 Lancer la partie !</button>
+      <p id="wait-start-msg" class="hint hidden">⏳ En attente que le créateur lance la partie...</p>
+    </div>
+    <div id="lobby-error" class="error-msg hidden"></div>
+  </div>
+</div>
+
+<!-- ===== QUESTION PHASE ===== -->
+<div id="question-view" class="view">
+  <div class="game-container">
+    <div class="game-header">
+      <span class="round-badge">Manche <span id="q-round"></span></span>
+      <div class="token-row">
+        <span class="token-pill my-team">🪙 <span id="q-my-tokens"></span></span>
+        <span class="vs-sep">VS</span>
+        <span class="token-pill opp-team">🪙 <span id="q-opp-tokens"></span></span>
+      </div>
+    </div>
+
+    <div class="phase-label">✏️ Phase de rédaction</div>
+    <p class="phase-desc">Votre équipe a reçu une question. Inventez 2 fausses réponses convaincantes !</p>
+
+    <div class="question-card">
+      <div class="question-label">🎯 Votre question</div>
+      <div id="q-question" class="question-text"></div>
+      <div class="real-answer-hint">✅ La vraie réponse est : <strong id="q-real-answer"></strong></div>
+    </div>
+
+    <div class="answers-form">
+      <div class="fake-answer-input">
+        <label>🎭 Fausse réponse n°1</label>
+        <input type="text" id="fake1" placeholder="Invente quelque chose de crédible..." maxlength="100" oninput="syncAnswers()" autocomplete="off">
+      </div>
+      <div class="fake-answer-input">
+        <label>🎭 Fausse réponse n°2</label>
+        <input type="text" id="fake2" placeholder="Encore plus convaincant..." maxlength="100" oninput="syncAnswers()" autocomplete="off">
+      </div>
+      <button class="btn btn-primary btn-large" onclick="submitFakeAnswers()">✅ Soumettre nos réponses</button>
+    </div>
+
+    <div id="q-team-status" class="team-status-row">
+      <div id="q-status-t1" class="team-status-item">🔵 Équipe 1 : <span>en cours...</span></div>
+      <div id="q-status-t2" class="team-status-item">🔴 Équipe 2 : <span>en cours...</span></div>
+    </div>
+    <div id="q-submitted-msg" class="submitted-overlay hidden">
+      <div class="submitted-card">
+        <div style="font-size:3rem">✅</div>
+        <p>Vos réponses sont soumises !</p>
+        <p class="hint">En attente de l'autre équipe... 🎩</p>
+      </div>
+    </div>
+    <div id="q-error" class="error-msg hidden"></div>
+  </div>
+</div>
+
+<!-- ===== VOTING PHASE ===== -->
+<div id="voting-view" class="view">
+  <div class="game-container">
+    <div class="game-header">
+      <span class="round-badge">Manche <span id="v-round"></span></span>
+      <div class="token-row">
+        <span class="token-pill my-team">🪙 <span id="v-my-tokens"></span> jetons à miser</span>
+      </div>
+    </div>
+
+    <div class="phase-label">🎰 Phase de mise</div>
+    <p class="phase-desc">Trouvez la vraie réponse parmi les 3 propositions adverses. Misez vos jetons !</p>
+
+    <div class="question-card">
+      <div class="question-label">❓ Question de l'équipe adverse</div>
+      <div id="v-question" class="question-text"></div>
+    </div>
+
+    <div id="voting-answers" class="voting-answers"></div>
+
+    <div class="bets-summary">
+      <span>Total misé : <strong id="bets-total">0</strong></span>
+      <span id="bets-remaining-display"></span>
+    </div>
+
+    <button id="confirm-bets-btn" class="btn btn-primary btn-large" onclick="submitBets()">🎲 Confirmer nos mises</button>
+
+    <div id="v-submitted-msg" class="submitted-overlay hidden">
+      <div class="submitted-card">
+        <div style="font-size:3rem">🎲</div>
+        <p>Vos mises sont confirmées !</p>
+        <p class="hint">En attente de l'autre équipe... 🎩</p>
+      </div>
+    </div>
+    <div id="v-error" class="error-msg hidden"></div>
+  </div>
+</div>
+
+<!-- ===== RESULTS ===== -->
+<div id="results-view" class="view">
+  <div class="game-container wide">
+    <div class="game-header">
+      <span class="round-badge">Résultats — Manche <span id="r-round"></span></span>
+      <div class="token-row">
+        <span class="token-pill team1-pill">🔵 <span id="r-t1-tokens"></span> 🪙</span>
+        <span class="token-pill team2-pill">🔴 <span id="r-t2-tokens"></span> 🪙</span>
+      </div>
+    </div>
+
+    <div class="results-grid">
+      <div class="result-block" id="result-team1-block">
+        <div class="result-block-header">🔵 Question de l'Équipe 1 <span class="voted-by">(votée par 🔴)</span></div>
+        <div class="result-question" id="r-q1-question"></div>
+        <div id="r-q1-answers" class="result-answers"></div>
+        <div class="result-summary" id="r-q1-summary"></div>
+      </div>
+      <div class="result-block" id="result-team2-block">
+        <div class="result-block-header">🔴 Question de l'Équipe 2 <span class="voted-by">(votée par 🔵)</span></div>
+        <div class="result-question" id="r-q2-question"></div>
+        <div id="r-q2-answers" class="result-answers"></div>
+        <div class="result-summary" id="r-q2-summary"></div>
+      </div>
+    </div>
+
+    <div id="next-round-section" class="next-section">
+      <button id="next-round-btn" class="btn btn-primary btn-large hidden" onclick="nextRound()">➡️ Manche suivante</button>
+      <p id="wait-next-msg" class="hint hidden">⏳ En attente que le créateur lance la prochaine manche...</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== GAME OVER ===== -->
+<div id="gameover-view" class="view">
+  <div class="center-card gameover-card">
+    <div id="go-emoji" class="go-emoji"></div>
+    <h1 id="go-title"></h1>
+    <p id="go-subtitle"></p>
+    <div class="go-tokens">
+      <div class="go-token-item team1-color">🔵 Équipe 1 : <span id="go-t1-tokens"></span> 🪙</div>
+      <div class="go-token-item team2-color">🔴 Équipe 2 : <span id="go-t2-tokens"></span> 🪙</div>
+    </div>
+    <button id="restart-btn" class="btn btn-primary btn-large hidden" onclick="restartGame()">🔄 Rejouer</button>
+    <p id="wait-restart-msg" class="hint hidden">⏳ En attente que le créateur relance...</p>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
