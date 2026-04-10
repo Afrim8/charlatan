@@ -1184,11 +1184,24 @@ input[type="text"]::placeholder { color: var(--text-muted); }
 
   .lobby-container { padding: 1rem 0.5rem; }
   .lobby-header { padding: 1.25rem 1rem; }
-  .room-code-display { font-size: 1.4rem; letter-spacing: 4px; padding: 0.5rem 1rem; }
+
+  /* Room code: shrink font so it fits without overflow */
+  .room-code-display {
+    font-size: 1.2rem;
+    letter-spacing: 3px;
+    padding: 0.5rem 0.75rem;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  /* Team names: prevent wrapping */
+  .team-card h3 { font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   .game-header { padding: 0.7rem 0.9rem; }
   .round-badge { font-size: 0.75rem; padding: 0.3rem 0.65rem; }
   .token-pill { font-size: 0.78rem; padding: 0.28rem 0.6rem; }
+  .timer-text { font-size: 1.1rem; }
+  .timer-bar { width: 48px; }
 
   .question-text { font-size: 1.1rem; }
 
@@ -1200,4 +1213,11 @@ input[type="text"]::placeholder { color: var(--text-muted); }
   /* Bigger tap targets */
   .btn { padding: 0.85rem 1.25rem; min-height: 48px; }
   input[type="text"] { font-size: 1rem; min-height: 48px; }
+
+  /* Chat: panneau plein écran en bas, au-dessus de la reaction bar */
+  .chat-panel { bottom: 4.5rem; }
+
+  /* Reaction bar + chat toggle: décaler à gauche pour ne pas se chevaucher */
+  .reaction-bar { bottom: 1rem; left: 50%; transform: translateX(-50%); }
+  .chat-toggle { bottom: 1rem; right: 1rem; width: 46px; height: 46px; font-size: 1.2rem; }
 }
