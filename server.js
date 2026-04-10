@@ -289,6 +289,19 @@ io.on('connection', (socket) => {
     io.to(socket.roomCode).emit('reaction', { emoji, playerName: socket.playerName, avatar: socket.avatar });
   });
 
+  socket.on('chatMessage', ({ text }) => {
+    const room = rooms[socket.roomCode];
+    if (!room) return;
+    const cleaned = (text || '').trim().substring(0, 200);
+    if (!cleaned) return;
+    io.to(socket.roomCode).emit('chatMessage', {
+      playerName: socket.playerName,
+      avatar: socket.avatar,
+      team: socket.team,
+      text: cleaned,
+    });
+  });
+
   socket.on('chooseTeam', ({ team }) => {
     const room = rooms[socket.roomCode];
     if (!room || room.state !== 'lobby' || !['team1', 'team2'].includes(team)) return;

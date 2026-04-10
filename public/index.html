@@ -253,6 +253,24 @@
 <!-- Floating reactions container -->
 <div id="reactions-container" aria-hidden="true"></div>
 
+<!-- ===== CHAT ===== -->
+<button id="chat-toggle" class="chat-toggle hidden" onclick="toggleChat()">
+  💬
+  <span id="chat-unread" class="chat-unread hidden">0</span>
+</button>
+
+<div id="chat-panel" class="chat-panel hidden">
+  <div class="chat-header">
+    <span>💬 Chat</span>
+    <button class="chat-close" onclick="toggleChat()">✕</button>
+  </div>
+  <div id="chat-messages" class="chat-messages"></div>
+  <div class="chat-input-row">
+    <input type="text" id="chat-input" placeholder="Écris un message..." maxlength="200" autocomplete="off">
+    <button class="btn-send" onclick="sendChat()">➤</button>
+  </div>
+</div>
+
 <script src="/socket.io/socket.io.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
 <script src="game.js"></script>

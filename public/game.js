@@ -26,6 +26,7 @@ const S = {
 
 // === UTILS ===
 const GAME_VIEWS = ['question-view', 'voting-view', 'results-view', 'gameover-view'];
+const CHAT_VIEWS = ['lobby-view', 'question-view', 'voting-view', 'results-view', 'gameover-view'];
 
 function showView(id) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -33,6 +34,9 @@ function showView(id) {
   // Show reaction bar only during gameplay
   const bar = document.getElementById('reaction-bar');
   if (bar) bar.classList.toggle('hidden', !GAME_VIEWS.includes(id));
+  // Show chat toggle in lobby + gameplay
+  const chatToggle = document.getElementById('chat-toggle');
+  if (chatToggle) chatToggle.classList.toggle('hidden', !CHAT_VIEWS.includes(id));
 }
 
 function showError(id, msg) {
@@ -122,6 +126,80 @@ function showReaction(emoji, playerName, avatar) {
   setTimeout(() => el.remove(), 2800);
 }
 
+// === CHAT ===
+let chatOpen = false;
+let chatUnread = 0;
+
+function toggleChat() {
+  chatOpen = !chatOpen;
+  const panel = document.getElementById('chat-panel');
+  panel.classList.toggle('hidden', !chatOpen);
+  if (chatOpen) {
+    chatUnread = 0;
+    const badge = document.getElementById('chat-unread');
+    badge.classList.add('hidden');
+    badge.textContent = '0';
+    // Scroll to bottom
+    const msgs = document.getElementById('chat-messages');
+    if (msgs) msgs.scrollTop = msgs.scrollHeight;
+    // Focus input
+    setTimeout(() => {
+      const inp = document.getElementById('chat-input');
+      if (inp) inp.focus();
+    }, 50);
+  }
+}
+
+function sendChat() {
+  const inp = document.getElementById('chat-input');
+  if (!inp) return;
+  const text = inp.value.trim();
+  if (!text) return;
+  socket.emit('chatMessage', { text });
+  inp.value = '';
+  inp.focus();
+}
+
+function appendChatMessage({ playerName, avatar, team, text, isSystem }) {
+  const msgs = document.getElementById('chat-messages');
+  if (!msgs) return;
+
+  const el = document.createElement('div');
+
+  if (isSystem) {
+    el.className = 'chat-system';
+    el.textContent = text;
+  } else {
+    const isMe = playerName === S.playerName;
+    el.className = 'chat-msg' + (isMe ? ' is-me' : '');
+    const teamClass = team === 'team1' ? 'chat-team1' : team === 'team2' ? 'chat-team2' : '';
+    el.innerHTML = `
+      <span class="chat-avatar">${avatar || '🎩'}</span>
+      <div class="chat-bubble ${teamClass}">
+        <span class="chat-name">${isMe ? 'Toi' : playerName}</span>
+        <span class="chat-text">${escapeHtml(text)}</span>
+      </div>
+    `;
+  }
+
+  msgs.appendChild(el);
+  msgs.scrollTop = msgs.scrollHeight;
+
+  // Unread badge when panel is closed
+  if (!chatOpen && !isSystem) {
+    chatUnread++;
+    const badge = document.getElementById('chat-unread');
+    if (badge) {
+      badge.textContent = chatUnread > 9 ? '9+' : chatUnread;
+      badge.classList.remove('hidden');
+    }
+  }
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 // === HOME ===
 function showJoin() {
   const sec = document.getElementById('join-section');
@@ -168,6 +246,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const inp = document.getElementById(`${team}-name-input`);
     if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter') saveTeamName(team); });
   });
+  // Enter to send chat
+  const chatInp = document.getElementById('chat-input');
+  if (chatInp) chatInp.addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
 });
 
 // === LOBBY ===
@@ -583,6 +664,7 @@ socket.on('error', ({ message }) => {
 
 socket.on('playerJoined', ({ playerName, socketId, roomState }) => {
   renderLobby(roomState);
+  appendChatMessage({ isSystem: true, text: `${playerName} a rejoint le salon` });
 });
 
 socket.on('teamUpdate', ({ roomState, socketId, team }) => {
@@ -592,6 +674,7 @@ socket.on('teamUpdate', ({ roomState, socketId, team }) => {
 
 socket.on('playerLeft', ({ playerName, roomState }) => {
   renderLobby(roomState);
+  appendChatMessage({ isSystem: true, text: `${playerName} a quitté le salon` });
 });
 
 socket.on('newCreator', ({ socketId }) => {
@@ -689,6 +772,10 @@ socket.on('roundResults', (data) => {
   } else {
     renderResults(data);
   }
+});
+
+socket.on('chatMessage', ({ playerName, avatar, team, text }) => {
+  appendChatMessage({ playerName, avatar, team, text });
 });
 
 socket.on('gameRestarted', ({ roomState }) => {
