@@ -289,6 +289,72 @@ io.on('connection', (socket) => {
     io.to(socket.roomCode).emit('reaction', { emoji, playerName: socket.playerName, avatar: socket.avatar });
   });
 
+  // Reconnexion : un joueur déjà dans une partie se reconnecte avec un nouveau socket
+  socket.on('rejoinRoom', ({ code, playerName }) => {
+    const room = rooms[code];
+    if (!room) { socket.emit('rejoinFailed'); return; }
+
+    // Trouver le joueur par son nom dans l'une des équipes
+    let foundTeam = null;
+    let foundPlayer = null;
+    for (const t of ['team1', 'team2']) {
+      const p = room.teams[t].players.find(p => p.name === playerName);
+      if (p) { foundTeam = t; foundPlayer = p; break; }
+    }
+    if (!foundPlayer) { socket.emit('rejoinFailed'); return; }
+
+    const oldId = foundPlayer.id;
+    foundPlayer.id = socket.id;
+    socket.join(code);
+    socket.roomCode = code;
+    socket.playerName = playerName;
+    socket.team = foundTeam;
+    socket.avatar = foundPlayer.avatar;
+
+    if (room.creatorId === oldId) room.creatorId = socket.id;
+
+    // Renvoyer l'état courant de la partie
+    const opp = foundTeam === 'team1' ? 'team2' : 'team1';
+    socket.emit('rejoinAck', { roomState: publicRoom(room), myAvatar: foundPlayer.avatar });
+
+    if (room.state === 'question' && room.currentQuestions) {
+      const q = room.currentQuestions[foundTeam];
+      socket.emit('questionPhase', {
+        round: room.round,
+        question: q.question,
+        realAnswer: q.answer,
+        myTokens: room.teams[foundTeam].tokens,
+        oppTokens: room.teams[opp].tokens,
+        teamNames: room.teamNames,
+        timerDuration: room.timerDuration,
+      });
+      if (room.teams[foundTeam].submittedAnswers) {
+        socket.emit('teamSubmittedAnswers', { team: foundTeam, roomState: publicRoom(room) });
+      }
+    } else if (room.state === 'voting' && room.answersForVote) {
+      const votingQ = foundTeam === 'team1' ? room.currentQuestions.team2 : room.currentQuestions.team1;
+      const answers = foundTeam === 'team1' ? room.answersForVote.team2 : room.answersForVote.team1;
+      socket.emit('votingPhase', {
+        question: votingQ.question,
+        answers: answers.map(a => a.text),
+        myTokens: room.teams[foundTeam].tokens,
+        teamNames: room.teamNames,
+        timerDuration: room.timerDuration,
+      });
+      if (room.teams[foundTeam].submittedBets) {
+        socket.emit('teamSubmittedBets', { team: foundTeam });
+      }
+    } else if (room.state === 'lobby') {
+      socket.emit('roomJoined', { roomState: publicRoom(room), myAvatar: foundPlayer.avatar });
+    }
+
+    console.log(`${playerName} a rejoint (reconnexion) ${code}`);
+  });
+
+  socket.on('reportBug', ({ description, roomCode, phase }) => {
+    console.log(`🐛 BUG REPORT [${roomCode || 'hors-jeu'}] phase:${phase || '?'} — ${description}`);
+  });
+
   socket.on('chatMessage', ({ text }) => {
     const room = rooms[socket.roomCode];
     if (!room) return;

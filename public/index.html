@@ -297,6 +297,25 @@
   </div>
 </div>
 
+<!-- ===== BUG REPORT ===== -->
+<button id="bug-btn" class="bug-btn" onclick="openBugReport()" title="Signaler un bug">🐛</button>
+
+<div id="bug-modal" class="bug-modal hidden">
+  <div class="bug-modal-inner">
+    <div class="bug-modal-header">
+      <span>🐛 Signaler un bug</span>
+      <button class="chat-close" onclick="closeBugReport()">✕</button>
+    </div>
+    <div id="bug-form">
+      <textarea id="bug-desc" placeholder="Décris ce qui s'est passé..." maxlength="500"></textarea>
+      <button class="btn btn-primary" style="width:100%" onclick="submitBug()">Envoyer</button>
+    </div>
+    <div id="bug-thanks" class="hidden" style="text-align:center;padding:1rem;color:var(--green);font-weight:700;">
+      ✅ Merci, c'est envoyé !
+    </div>
+  </div>
+</div>
+
 <script src="/socket.io/socket.io.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
 <script src="game.js"></script>

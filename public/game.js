@@ -740,10 +740,10 @@ function renderResults(data) {
   renderResultBlock('r-q1', data.team1Data);
   renderResultBlock('r-q2', data.team2Data);
 
-  // Next round button
-  const isCreator = data.creatorId === S.socketId;
-  document.getElementById('next-round-btn').classList.toggle('hidden', !isCreator || data.isGameOver);
-  document.getElementById('wait-next-msg').classList.toggle('hidden', isCreator || data.isGameOver);
+  // Next round button — utiliser S.isCreator (résiste aux reconnexions)
+  if (data.creatorId) S.isCreator = data.creatorId === S.socketId;
+  document.getElementById('next-round-btn').classList.toggle('hidden', !S.isCreator || data.isGameOver);
+  document.getElementById('wait-next-msg').classList.toggle('hidden', S.isCreator || data.isGameOver);
 
   showView('results-view');
 
@@ -819,9 +819,9 @@ function renderGameOver(data) {
   document.getElementById('go-t1-name').textContent = S.teamNames.team1;
   document.getElementById('go-t2-name').textContent = S.teamNames.team2;
 
-  const isCreator = data.creatorId === S.socketId;
-  document.getElementById('restart-btn').classList.toggle('hidden', !isCreator);
-  document.getElementById('wait-restart-msg').classList.toggle('hidden', isCreator);
+  if (data.creatorId) S.isCreator = data.creatorId === S.socketId;
+  document.getElementById('restart-btn').classList.toggle('hidden', !S.isCreator);
+  document.getElementById('wait-restart-msg').classList.toggle('hidden', S.isCreator);
 
   showView('gameover-view');
 
@@ -841,9 +841,42 @@ function restartGame() {
   socket.emit('restartGame');
 }
 
+// === BUG REPORT ===
+function openBugReport() {
+  document.getElementById('bug-modal').classList.remove('hidden');
+  document.getElementById('bug-desc').focus();
+}
+
+function closeBugReport() {
+  document.getElementById('bug-modal').classList.add('hidden');
+  document.getElementById('bug-desc').value = '';
+  document.getElementById('bug-thanks').classList.add('hidden');
+  document.getElementById('bug-form').classList.remove('hidden');
+}
+
+function submitBug() {
+  const desc = document.getElementById('bug-desc').value.trim();
+  if (!desc) return;
+  const activeView = document.querySelector('.view.active');
+  const phase = activeView ? activeView.id : 'inconnu';
+  socket.emit('reportBug', { description: desc, roomCode: S.roomCode, phase });
+  document.getElementById('bug-form').classList.add('hidden');
+  document.getElementById('bug-thanks').classList.remove('hidden');
+  setTimeout(closeBugReport, 2000);
+}
+
 // === SOCKET EVENTS ===
+let _prevSocketId = null;
+
 socket.on('connect', () => {
+  const prevId = _prevSocketId;
+  _prevSocketId = socket.id;
   S.socketId = socket.id;
+
+  // Tentative de rejoin si reconnexion en pleine partie
+  if (prevId && prevId !== socket.id && S.roomCode && S.playerName) {
+    socket.emit('rejoinRoom', { code: S.roomCode, playerName: S.playerName });
+  }
 });
 
 socket.on('roomCreated', ({ code, roomState, myAvatar }) => {
@@ -985,6 +1018,21 @@ socket.on('roundResults', (data) => {
       renderResults(data);
     }
   });
+});
+
+socket.on('rejoinAck', ({ roomState, myAvatar }) => {
+  if (myAvatar) S.myAvatar = myAvatar;
+  if (roomState.teamNames) S.teamNames = roomState.teamNames;
+  S.isCreator = roomState.creatorId === S.socketId;
+  S.roomState = roomState;
+  for (const t of ['team1', 'team2']) {
+    if (roomState.teams[t].players.some(p => p.id === S.socketId)) S.team = t;
+  }
+  appendChatMessage({ isSystem: true, text: '🔄 Reconnexion réussie' });
+});
+
+socket.on('rejoinFailed', () => {
+  appendChatMessage({ isSystem: true, text: '❌ Reconnexion échouée — la partie est peut-être terminée' });
 });
 
 socket.on('chatMessage', ({ playerName, avatar, team, text }) => {
