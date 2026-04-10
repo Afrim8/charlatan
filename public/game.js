@@ -25,8 +25,8 @@ const S = {
 };
 
 // === UTILS ===
-const GAME_VIEWS = ['question-view', 'voting-view', 'results-view', 'gameover-view'];
-const CHAT_VIEWS = ['lobby-view', 'question-view', 'voting-view', 'results-view', 'gameover-view'];
+const GAME_VIEWS = ['question-view', 'voting-view', 'reveal-view', 'results-view', 'gameover-view'];
+const CHAT_VIEWS = ['lobby-view', 'question-view', 'voting-view', 'reveal-view', 'results-view', 'gameover-view'];
 
 function showView(id) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -52,6 +52,112 @@ function hideError(id) {
   if (el) el.classList.add('hidden');
 }
 
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// === SOUNDS (Web Audio API — aucune dépendance externe) ===
+let audioCtx = null;
+
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+document.addEventListener('click', () => { if (audioCtx) audioCtx.resume(); });
+
+function playSound(type) {
+  try {
+    const ctx = ensureAudio();
+    switch (type) {
+      case 'tick':     _sTick(ctx);     break;
+      case 'submit':   _sSubmit(ctx);   break;
+      case 'flip':     _sFlip(ctx);     break;
+      case 'fake':     _sFake(ctx);     break;
+      case 'real':     _sReal(ctx);     break;
+      case 'drumroll': _sDrumroll(ctx); break;
+      case 'fanfare':  _sFanfare(ctx);  break;
+    }
+  } catch(e) {}
+}
+
+function _sTick(ctx) {
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.connect(g); g.connect(ctx.destination);
+  o.type = 'square'; o.frequency.value = 900;
+  g.gain.setValueAtTime(0.08, ctx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
+  o.start(); o.stop(ctx.currentTime + 0.06);
+}
+
+function _sSubmit(ctx) {
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.connect(g); g.connect(ctx.destination);
+  o.type = 'sine';
+  o.frequency.setValueAtTime(380, ctx.currentTime);
+  o.frequency.exponentialRampToValueAtTime(760, ctx.currentTime + 0.18);
+  g.gain.setValueAtTime(0.2, ctx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
+  o.start(); o.stop(ctx.currentTime + 0.22);
+}
+
+function _sFlip(ctx) {
+  const len = Math.floor(ctx.sampleRate * 0.1);
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * 0.25 * (1 - i / len);
+  const src = ctx.createBufferSource();
+  const filt = ctx.createBiquadFilter();
+  filt.type = 'bandpass'; filt.frequency.value = 1200; filt.Q.value = 0.5;
+  src.buffer = buf; src.connect(filt); filt.connect(ctx.destination);
+  src.start();
+}
+
+function _sFake(ctx) {
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.connect(g); g.connect(ctx.destination);
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(260, ctx.currentTime);
+  o.frequency.exponentialRampToValueAtTime(55, ctx.currentTime + 0.45);
+  g.gain.setValueAtTime(0.28, ctx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+  o.start(); o.stop(ctx.currentTime + 0.5);
+}
+
+function _sReal(ctx) {
+  [523, 659, 784].forEach((freq, i) => {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = 'sine'; o.frequency.value = freq;
+    const t = ctx.currentTime + i * 0.1;
+    g.gain.setValueAtTime(0.22, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+    o.start(t); o.stop(t + 0.5);
+  });
+}
+
+function _sDrumroll(ctx) {
+  for (let i = 0; i < 7; i++) {
+    const len = Math.floor(ctx.sampleRate * 0.04);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let j = 0; j < len; j++) d[j] = (Math.random() * 2 - 1) * 0.35 * (1 - j / len);
+    const src = ctx.createBufferSource();
+    src.buffer = buf; src.connect(ctx.destination);
+    src.start(ctx.currentTime + i * 0.085);
+  }
+}
+
+function _sFanfare(ctx) {
+  [523, 659, 784, 1047, 1568].forEach((freq, i) => {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = 'square'; o.frequency.value = freq;
+    const t = ctx.currentTime + i * 0.13;
+    g.gain.setValueAtTime(0.1, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+    o.start(t); o.stop(t + 0.55);
+  });
+}
+
 // === TIMER ===
 function startTimer(duration, textId, fillId) {
   stopTimer();
@@ -65,6 +171,9 @@ function startTimer(duration, textId, fillId) {
     textEl.textContent = remaining;
     const pct = (remaining / duration) * 100;
     fillEl.style.width = pct + '%';
+    // Tick sound on last 5 seconds
+    if (remaining <= 5 && remaining > 0) playSound('tick');
+
     // Color transitions
     if (remaining <= 10) {
       fillEl.style.background = 'var(--red)';
@@ -385,6 +494,7 @@ function submitFakeAnswers() {
   if (!a1 || !a2) { showError('q-error', '✏️ Écris tes 2 fausses réponses !'); return; }
   S.teamSubmitted = true;
   stopTimer();
+  playSound('submit');
   socket.emit('submitFakeAnswers', { answer1: a1, answer2: a2 });
   document.getElementById('q-submitted-msg').classList.remove('hidden');
 }
@@ -507,9 +617,107 @@ function submitBets() {
   if (total !== S.myTokens) { showError('v-error', `⚖️ Mise exactement ${S.myTokens} jetons (actuellement ${total})`); return; }
   S.teamSubmitted = true;
   stopTimer();
+  playSound('submit');
   socket.emit('submitBets', { bets: S.bets });
   document.getElementById('v-submitted-msg').classList.remove('hidden');
   document.getElementById('confirm-bets-btn').disabled = true;
+}
+
+// === DRAMATIC REVEAL ===
+async function dramaticReveal(data) {
+  stopTimer();
+  if (data.teamNames) S.teamNames = data.teamNames;
+
+  document.getElementById('rv-round').textContent = data.round;
+  document.getElementById('rv-t1').textContent = '?';
+  document.getElementById('rv-t2').textContent = '?';
+
+  showView('reveal-view');
+  playSound('drumroll');
+  await sleep(900);
+
+  // Q1 : question de l'équipe 1 (votée par équipe 2)
+  await revealBlock(data.team1Data, 1, S.teamNames.team1, '🔵');
+  await sleep(1000);
+
+  // Q2 : question de l'équipe 2 (votée par équipe 1)
+  await revealBlock(data.team2Data, 2, S.teamNames.team2, '🔴');
+  await sleep(600);
+
+  // Afficher les jetons finaux
+  animateCounter(document.getElementById('rv-t1'), 0, data.tokens.team1, 600);
+  animateCounter(document.getElementById('rv-t2'), 0, data.tokens.team2, 600);
+  await sleep(1400);
+}
+
+async function revealBlock(teamData, qNum, teamLabel, teamEmoji) {
+  const teamEl    = document.getElementById('rv-q-team');
+  const questionEl = document.getElementById('rv-question');
+  const cardsEl   = document.getElementById('rv-cards');
+  const verdictEl  = document.getElementById('rv-verdict');
+  const progressEl = document.getElementById('rv-progress-text');
+
+  teamEl.textContent    = `${teamEmoji} ${teamLabel}`;
+  questionEl.textContent = teamData.question;
+  progressEl.textContent = `Question ${qNum} / 2`;
+  verdictEl.classList.add('hidden');
+  cardsEl.innerHTML = '';
+
+  const labels = ['A', 'B', 'C'];
+  const cards = labels.map((lbl, i) => {
+    const card = document.createElement('div');
+    card.className = 'rv-card rv-facedown';
+    const bet = teamData.bets[i] || 0;
+    card.innerHTML = `
+      <div class="rv-card-inner">
+        <div class="rv-card-front">
+          <span class="rv-card-lbl">${lbl}</span>
+          <span class="rv-card-text">${teamData.answers[i]}</span>
+          <span class="rv-card-bet">${bet > 0 ? `🪙 ${bet}` : ''}</span>
+          <span class="rv-card-badge"></span>
+        </div>
+        <div class="rv-card-back">🎭</div>
+      </div>`;
+    cardsEl.appendChild(card);
+    return card;
+  });
+
+  await sleep(400);
+
+  for (let i = 0; i < 3; i++) {
+    await sleep(550); // suspense avant chaque carte
+
+    playSound('flip');
+    const isReal = i === teamData.realIndex;
+    cards[i].classList.remove('rv-facedown');
+    cards[i].classList.add(isReal ? 'rv-real' : 'rv-fake');
+
+    await sleep(520); // laisser l'animation de flip terminer
+
+    const badge = cards[i].querySelector('.rv-card-badge');
+    badge.textContent = isReal ? '✅ VRAIE RÉPONSE !' : '🎭 Inventée';
+    playSound(isReal ? 'real' : 'fake');
+
+    await sleep(900);
+  }
+
+  // Verdict final
+  await sleep(300);
+  const kept = teamData.tokensKept;
+  const lost = teamData.prevTokens - kept;
+  verdictEl.classList.remove('hidden');
+
+  if (lost === 0) {
+    verdictEl.innerHTML = `<span class="verdict-win">✨ Parfait ! ${teamEmoji} ${teamLabel} a tout gardé !</span>`;
+    playSound('real');
+  } else if (kept === 0) {
+    verdictEl.innerHTML = `<span class="verdict-loss">💀 Tout perdu ! ${teamEmoji} ${teamLabel} perd ${lost} 🪙 !</span>`;
+    playSound('fake');
+  } else {
+    verdictEl.innerHTML = `<span class="verdict-neutral">${teamEmoji} ${teamLabel} conserve <strong>${kept}</strong> 🪙 sur ${teamData.prevTokens}</span>`;
+  }
+
+  await sleep(1800);
 }
 
 // === RESULTS ===
@@ -617,12 +825,15 @@ function renderGameOver(data) {
 
   showView('gameover-view');
 
-  // Confetti if we won
+  // Son + confetti si on a gagné
   if (S.team === winnerKey) {
+    playSound('fanfare');
     setTimeout(() => {
       launchConfetti();
       setTimeout(launchConfetti, 800);
     }, 300);
+  } else {
+    playSound('fake');
   }
 }
 
@@ -762,16 +973,18 @@ socket.on('teamSubmittedBets', ({ team }) => {
 });
 
 socket.on('roundResults', (data) => {
-  if (data.isGameOver) {
-    renderGameOver({
-      winner: data.winner,
-      tokens: data.tokens,
-      creatorId: data.creatorId,
-      teamNames: data.teamNames,
-    });
-  } else {
-    renderResults(data);
-  }
+  dramaticReveal(data).then(() => {
+    if (data.isGameOver) {
+      renderGameOver({
+        winner: data.winner,
+        tokens: data.tokens,
+        creatorId: data.creatorId,
+        teamNames: data.teamNames,
+      });
+    } else {
+      renderResults(data);
+    }
+  });
 });
 
 socket.on('chatMessage', ({ playerName, avatar, team, text }) => {

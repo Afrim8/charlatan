@@ -975,6 +975,140 @@ input[type="text"]::placeholder { color: var(--text-muted); }
 /* === AVATAR CHIP === */
 .chip-avatar { font-size: 1.1rem; line-height: 1; }
 
+/* === DRAMATIC REVEAL === */
+.rv-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.rv-card {
+  perspective: 900px;
+  height: 90px;
+  cursor: default;
+}
+
+.rv-card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.55s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.rv-card.rv-facedown .rv-card-inner {
+  transform: rotateY(180deg);
+}
+
+.rv-card-front,
+.rv-card-back {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  padding: 0 1.2rem;
+  gap: 0.8rem;
+}
+
+.rv-card-front {
+  background: var(--surface);
+  border: 1.5px solid var(--border-bright);
+  box-shadow: var(--shadow-sm);
+  flex-direction: row;
+}
+
+.rv-card-back {
+  background: linear-gradient(135deg, var(--purple), #3b1a7a);
+  border: 1.5px solid var(--purple-light);
+  justify-content: center;
+  font-size: 2.5rem;
+  transform: rotateY(180deg);
+}
+
+.rv-card-lbl {
+  font-family: 'Cinzel', serif;
+  font-weight: 800;
+  font-size: 1.1rem;
+  color: var(--text-muted);
+  width: 24px;
+  flex-shrink: 0;
+}
+
+.rv-card-text {
+  flex: 1;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.rv-card-bet {
+  font-size: 0.85rem;
+  color: var(--gold);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.rv-card-badge {
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 80px;
+  text-align: center;
+  transition: opacity 0.3s;
+}
+
+/* Carte vraie réponse */
+.rv-card.rv-real .rv-card-front {
+  border-color: var(--green-border);
+  background: var(--green-bg);
+  box-shadow: 0 0 24px rgba(74,222,128,0.2);
+}
+.rv-card.rv-real .rv-card-text { color: var(--green); }
+.rv-card.rv-real .rv-card-lbl  { color: var(--green); }
+.rv-card.rv-real .rv-card-badge {
+  background: var(--green-bg);
+  color: var(--green);
+  border: 1px solid var(--green-border);
+}
+
+/* Carte fausse réponse */
+.rv-card.rv-fake .rv-card-front {
+  opacity: 0.6;
+}
+.rv-card.rv-fake .rv-card-badge {
+  background: var(--team2-bg);
+  color: var(--red);
+  border: 1px solid var(--team2-border);
+}
+
+/* Verdict */
+.rv-verdict {
+  background: var(--surface);
+  border: 1.5px solid var(--border-bright);
+  border-radius: var(--radius-sm);
+  padding: 1rem 1.4rem;
+  text-align: center;
+  font-size: 1.05rem;
+  font-weight: 700;
+  animation: fadeUp 0.3s ease;
+}
+.verdict-win  { color: var(--green); }
+.verdict-loss { color: var(--red); }
+.verdict-neutral { color: var(--text); }
+.rv-progress { text-align: center; }
+
+/* Mobile */
+@media (max-width: 480px) {
+  .rv-card { height: 78px; }
+  .rv-card-text { font-size: 0.88rem; }
+  .rv-card-badge { min-width: 64px; font-size: 0.65rem; }
+}
+
 /* === CHAT TOGGLE BUTTON === */
 .chat-toggle {
   position: fixed;

@@ -226,6 +226,32 @@
   </div>
 </div>
 
+<!-- ===== REVEAL ===== -->
+<div id="reveal-view" class="view">
+  <div class="game-container">
+    <div class="game-header">
+      <span class="round-badge">🎭 Révélation — Manche <span id="rv-round"></span></span>
+      <div class="token-row">
+        <span class="token-pill team1-pill">🔵 <span id="rv-t1">?</span> 🪙</span>
+        <span class="token-pill team2-pill">🔴 <span id="rv-t2">?</span> 🪙</span>
+      </div>
+    </div>
+
+    <div class="question-card">
+      <div class="question-label">❓ Question de <span id="rv-q-team"></span></div>
+      <div id="rv-question" class="question-text"></div>
+    </div>
+
+    <div id="rv-cards" class="rv-cards"></div>
+
+    <div id="rv-verdict" class="rv-verdict hidden"></div>
+
+    <div class="rv-progress">
+      <span id="rv-progress-text" class="hint"></span>
+    </div>
+  </div>
+</div>
+
 <!-- ===== GAME OVER ===== -->
 <div id="gameover-view" class="view">
   <div class="center-card gameover-card">
