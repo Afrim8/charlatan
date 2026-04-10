@@ -790,3 +790,30 @@ input[type="text"]::placeholder { color: var(--text-muted); }
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* === MOBILE === */
+@media (max-width: 480px) {
+  h1 { font-size: 2rem; }
+  h2 { font-size: 1.25rem; }
+
+  .center-card { padding: 2rem 1.25rem; }
+
+  .lobby-container { padding: 1rem 0.5rem; }
+  .lobby-header { padding: 1.25rem 1rem; }
+  .room-code-display { font-size: 1.4rem; letter-spacing: 4px; padding: 0.5rem 1rem; }
+
+  .game-header { padding: 0.7rem 0.9rem; }
+  .round-badge { font-size: 0.75rem; padding: 0.3rem 0.65rem; }
+  .token-pill { font-size: 0.78rem; padding: 0.28rem 0.6rem; }
+
+  .question-text { font-size: 1.1rem; }
+
+  /* Vote: stack answer + bet input vertically */
+  .answer-bet-row { flex-direction: column; align-items: flex-start; gap: 0.6rem; }
+  .bet-input-wrap { width: 100%; justify-content: flex-end; }
+  .bet-input { width: 100%; font-size: 1.1rem; padding: 0.6rem; }
+
+  /* Bigger tap targets */
+  .btn { padding: 0.85rem 1.25rem; min-height: 48px; }
+  input[type="text"] { font-size: 1rem; min-height: 48px; }
+}
