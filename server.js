@@ -12,6 +12,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const rooms = {};
 
+const AVATARS = ['🦊','🐺','🦁','🐯','🐻','🦝','🦄','🐸','🐙','🦋','🦈','🐉','🦓','🦒','🦔','🐬'];
+const REACTIONS = ['😂','🤯','💀','👏','🔥'];
+
 function generateCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = '';
@@ -34,14 +37,16 @@ function publicRoom(room) {
     state: room.state,
     round: room.round,
     creatorId: room.creatorId,
+    teamNames: room.teamNames,
+    timerDuration: room.timerDuration,
     teams: {
       team1: {
-        players: room.teams.team1.players.map(p => ({ id: p.id, name: p.name })),
+        players: room.teams.team1.players.map(p => ({ id: p.id, name: p.name, avatar: p.avatar })),
         tokens: room.teams.team1.tokens,
         submitted: room.teams.team1.submittedAnswers,
       },
       team2: {
-        players: room.teams.team2.players.map(p => ({ id: p.id, name: p.name })),
+        players: room.teams.team2.players.map(p => ({ id: p.id, name: p.name, avatar: p.avatar })),
         tokens: room.teams.team2.tokens,
         submitted: room.teams.team2.submittedAnswers,
       },
@@ -49,7 +54,12 @@ function publicRoom(room) {
   };
 }
 
+function clearPhaseTimer(room) {
+  if (room.phaseTimer) { clearTimeout(room.phaseTimer); room.phaseTimer = null; }
+}
+
 function startRound(room) {
+  clearPhaseTimer(room);
   room.round++;
   room.state = 'question';
 
@@ -60,7 +70,6 @@ function startRound(room) {
     room.teams[t].submittedBets = false;
   }
 
-  // Pick 2 unused questions
   let available = questions
     .map((q, i) => ({ ...q, index: i }))
     .filter(q => !room.usedQuestionIndices.includes(q.index));
@@ -74,7 +83,6 @@ function startRound(room) {
   room.usedQuestionIndices.push(picked[0].index, picked[1].index);
   room.currentQuestions = { team1: picked[0], team2: picked[1] };
 
-  // Send each team their question (personalized)
   for (const teamName of ['team1', 'team2']) {
     const q = room.currentQuestions[teamName];
     const opp = teamName === 'team1' ? 'team2' : 'team1';
@@ -85,15 +93,30 @@ function startRound(room) {
         realAnswer: q.answer,
         myTokens: room.teams[teamName].tokens,
         oppTokens: room.teams[opp].tokens,
+        teamNames: room.teamNames,
+        timerDuration: room.timerDuration,
       });
     });
   }
+
+  // Safety auto-advance after timer expires
+  room.phaseTimer = setTimeout(() => {
+    if (room.state !== 'question') return;
+    for (const teamName of ['team1', 'team2']) {
+      if (!room.teams[teamName].submittedAnswers) {
+        room.teams[teamName].fakeAnswers = ['...', '...'];
+        room.teams[teamName].submittedAnswers = true;
+        io.to(room.code).emit('teamSubmittedAnswers', { team: teamName, roomState: publicRoom(room) });
+      }
+    }
+    setTimeout(() => { if (room.state === 'question') startVoting(room); }, 1200);
+  }, (room.timerDuration + 5) * 1000);
 }
 
 function startVoting(room) {
+  clearPhaseTimer(room);
   room.state = 'voting';
 
-  // Shuffle each team's answers (real + 2 fakes)
   room.answersForVote = {
     team1: shuffle([
       { text: room.currentQuestions.team1.answer, isReal: true },
@@ -107,12 +130,13 @@ function startVoting(room) {
     ]),
   };
 
-  // team1 votes on team2's answers, team2 votes on team1's answers
   room.teams.team1.players.forEach(p => {
     io.to(p.id).emit('votingPhase', {
       question: room.currentQuestions.team2.question,
       answers: room.answersForVote.team2.map(a => a.text),
       myTokens: room.teams.team1.tokens,
+      teamNames: room.teamNames,
+      timerDuration: room.timerDuration,
     });
   });
 
@@ -121,11 +145,28 @@ function startVoting(room) {
       question: room.currentQuestions.team1.question,
       answers: room.answersForVote.team1.map(a => a.text),
       myTokens: room.teams.team2.tokens,
+      teamNames: room.teamNames,
+      timerDuration: room.timerDuration,
     });
   });
+
+  room.phaseTimer = setTimeout(() => {
+    if (room.state !== 'voting') return;
+    for (const teamName of ['team1', 'team2']) {
+      if (!room.teams[teamName].submittedBets) {
+        const tokens = room.teams[teamName].tokens;
+        const base = Math.floor(tokens / 3);
+        room.teams[teamName].bets = [base, base, tokens - 2 * base];
+        room.teams[teamName].submittedBets = true;
+        io.to(room.code).emit('teamSubmittedBets', { team: teamName });
+      }
+    }
+    setTimeout(() => { if (room.state === 'voting') resolveRound(room); }, 800);
+  }, (room.timerDuration + 5) * 1000);
 }
 
 function resolveRound(room) {
+  clearPhaseTimer(room);
   room.state = 'results';
 
   const team2RealIdx = room.answersForVote.team2.findIndex(a => a.isReal);
@@ -149,28 +190,23 @@ function resolveRound(room) {
     winner: isGameOver ? (team1Kept > 0 ? 'team1' : 'team2') : null,
     tokens: { team1: room.teams.team1.tokens, team2: room.teams.team2.tokens },
     creatorId: room.creatorId,
-    // Team1's question was voted on by team2
+    teamNames: room.teamNames,
     team1Data: {
       question: room.currentQuestions.team1.question,
-      realAnswer: room.currentQuestions.team1.answer,
       answers: room.answersForVote.team1.map(a => a.text),
       realIndex: team1RealIdx,
       bets: room.teams.team2.bets,
       tokensKept: team2Kept,
       prevTokens: prevT2,
-      newTokens: room.teams.team2.tokens,
       votingTeam: 'team2',
     },
-    // Team2's question was voted on by team1
     team2Data: {
       question: room.currentQuestions.team2.question,
-      realAnswer: room.currentQuestions.team2.answer,
       answers: room.answersForVote.team2.map(a => a.text),
       realIndex: team2RealIdx,
       bets: room.teams.team1.bets,
       tokensKept: team1Kept,
       prevTokens: prevT1,
-      newTokens: room.teams.team1.tokens,
       votingTeam: 'team1',
     },
   });
@@ -181,11 +217,16 @@ io.on('connection', (socket) => {
 
   socket.on('createRoom', ({ playerName }) => {
     const code = generateCode();
+    socket.avatar = AVATARS[0];
     rooms[code] = {
       code,
       state: 'lobby',
       round: 0,
       creatorId: socket.id,
+      teamNames: { team1: 'Équipe 1', team2: 'Équipe 2' },
+      timerDuration: 60,
+      phaseTimer: null,
+      avatarCounter: 1,
       teams: {
         team1: { players: [], tokens: 16, fakeAnswers: null, bets: null, submittedAnswers: false, submittedBets: false },
         team2: { players: [], tokens: 16, fakeAnswers: null, bets: null, submittedAnswers: false, submittedBets: false },
@@ -200,7 +241,7 @@ io.on('connection', (socket) => {
     socket.playerName = playerName;
     socket.team = null;
 
-    socket.emit('roomCreated', { code, roomState: publicRoom(rooms[code]) });
+    socket.emit('roomCreated', { code, roomState: publicRoom(rooms[code]), myAvatar: socket.avatar });
     console.log(`Salon ${code} créé par ${playerName}`);
   });
 
@@ -210,14 +251,42 @@ io.on('connection', (socket) => {
     if (!room) { socket.emit('error', { message: '❌ Salon introuvable. Vérifie le code !' }); return; }
     if (room.state !== 'lobby') { socket.emit('error', { message: '⏳ Cette partie a déjà commencé !' }); return; }
 
+    socket.avatar = AVATARS[room.avatarCounter % AVATARS.length];
+    room.avatarCounter++;
+
     socket.join(upper);
     socket.roomCode = upper;
     socket.playerName = playerName;
     socket.team = null;
 
-    socket.emit('roomJoined', { roomState: publicRoom(room) });
+    socket.emit('roomJoined', { roomState: publicRoom(room), myAvatar: socket.avatar });
     socket.to(upper).emit('playerJoined', { playerName, socketId: socket.id, roomState: publicRoom(room) });
     console.log(`${playerName} a rejoint ${upper}`);
+  });
+
+  socket.on('setTeamName', ({ team, name }) => {
+    const room = rooms[socket.roomCode];
+    if (!room || room.state !== 'lobby' || !['team1', 'team2'].includes(team)) return;
+    if (socket.team !== team) return;
+    const cleaned = (name || '').trim().substring(0, 20);
+    if (!cleaned) return;
+    room.teamNames[team] = cleaned;
+    io.to(socket.roomCode).emit('teamNameUpdate', { team, name: cleaned });
+  });
+
+  socket.on('setTimerDuration', ({ duration }) => {
+    const room = rooms[socket.roomCode];
+    if (!room || room.state !== 'lobby' || socket.id !== room.creatorId) return;
+    const d = parseInt(duration);
+    if (![30, 45, 60, 90, 120].includes(d)) return;
+    room.timerDuration = d;
+    io.to(socket.roomCode).emit('timerDurationUpdate', { duration: d });
+  });
+
+  socket.on('sendReaction', ({ emoji }) => {
+    const room = rooms[socket.roomCode];
+    if (!room || !REACTIONS.includes(emoji)) return;
+    io.to(socket.roomCode).emit('reaction', { emoji, playerName: socket.playerName, avatar: socket.avatar });
   });
 
   socket.on('chooseTeam', ({ team }) => {
@@ -227,7 +296,7 @@ io.on('connection', (socket) => {
     if (socket.team) {
       room.teams[socket.team].players = room.teams[socket.team].players.filter(p => p.id !== socket.id);
     }
-    room.teams[team].players.push({ id: socket.id, name: socket.playerName });
+    room.teams[team].players.push({ id: socket.id, name: socket.playerName, avatar: socket.avatar });
     socket.team = team;
 
     io.to(socket.roomCode).emit('teamUpdate', { roomState: publicRoom(room), socketId: socket.id, team });
@@ -265,9 +334,9 @@ io.on('connection', (socket) => {
     room.teams[socket.team].submittedAnswers = true;
 
     io.to(socket.roomCode).emit('teamSubmittedAnswers', { team: socket.team, roomState: publicRoom(room) });
-    console.log(`${socket.team} a soumis ses réponses dans ${socket.roomCode}`);
 
     if (room.teams.team1.submittedAnswers && room.teams.team2.submittedAnswers) {
+      clearPhaseTimer(room);
       setTimeout(() => startVoting(room), 1800);
     }
   });
@@ -298,9 +367,9 @@ io.on('connection', (socket) => {
     room.teams[socket.team].submittedBets = true;
 
     io.to(socket.roomCode).emit('teamSubmittedBets', { team: socket.team });
-    console.log(`${socket.team} a misé dans ${socket.roomCode}`);
 
     if (room.teams.team1.submittedBets && room.teams.team2.submittedBets) {
+      clearPhaseTimer(room);
       setTimeout(() => resolveRound(room), 1000);
     }
   });
@@ -314,6 +383,7 @@ io.on('connection', (socket) => {
   socket.on('restartGame', () => {
     const room = rooms[socket.roomCode];
     if (!room || room.state !== 'gameover' || socket.id !== room.creatorId) return;
+    clearPhaseTimer(room);
     room.state = 'lobby';
     room.round = 0;
     room.teams.team1.tokens = 16;
@@ -344,6 +414,7 @@ io.on('connection', (socket) => {
         room.creatorId = all[0].id;
         io.to(socket.roomCode).emit('newCreator', { socketId: all[0].id });
       } else {
+        clearPhaseTimer(room);
         delete rooms[socket.roomCode];
         console.log(`Salon ${socket.roomCode} supprimé (vide)`);
       }

@@ -40,17 +40,46 @@
         <button class="btn-copy" onclick="copyCode()" title="Copier">📋</button>
       </div>
       <p class="lobby-hint">Partage ce code à tes amis !</p>
+
+      <!-- Timer duration selector (creator only) -->
+      <div id="timer-setting" class="timer-setting hidden">
+        <span class="timer-setting-label">⏱ Durée du timer :</span>
+        <div class="timer-btns">
+          <button class="timer-opt" data-dur="30" onclick="setTimerDuration(30)">30s</button>
+          <button class="timer-opt" data-dur="45" onclick="setTimerDuration(45)">45s</button>
+          <button class="timer-opt active" data-dur="60" onclick="setTimerDuration(60)">60s</button>
+          <button class="timer-opt" data-dur="90" onclick="setTimerDuration(90)">90s</button>
+          <button class="timer-opt" data-dur="120" onclick="setTimerDuration(120)">2min</button>
+        </div>
+      </div>
+      <div id="timer-display" class="timer-display-lobby hidden">
+        <span class="timer-setting-label">⏱ Timer : <strong id="timer-display-val">60s</strong></span>
+      </div>
     </div>
 
     <div class="teams-container">
       <div class="team-card team1-card">
-        <h3>🔵 Équipe 1</h3>
+        <div class="team-header-row">
+          <h3 id="lobby-team1-name">🔵 Équipe 1</h3>
+          <button class="btn-edit-name" id="edit-team1-btn" onclick="editTeamName('team1')" title="Renommer">✏️</button>
+        </div>
+        <div id="team1-name-edit" class="team-name-edit hidden">
+          <input type="text" id="team1-name-input" placeholder="Nom de l'équipe" maxlength="20" autocomplete="off">
+          <button class="btn btn-team1" style="padding:0.4rem 0.8rem;font-size:0.8rem;" onclick="saveTeamName('team1')">✅</button>
+        </div>
         <div class="token-display">🪙 <span id="lobby-t1-tokens">16</span> jetons</div>
         <div id="lobby-team1-players" class="player-list"></div>
         <button class="btn btn-team1" onclick="chooseTeam('team1')">Rejoindre cette équipe</button>
       </div>
       <div class="team-card team2-card">
-        <h3>🔴 Équipe 2</h3>
+        <div class="team-header-row">
+          <h3 id="lobby-team2-name">🔴 Équipe 2</h3>
+          <button class="btn-edit-name" id="edit-team2-btn" onclick="editTeamName('team2')" title="Renommer">✏️</button>
+        </div>
+        <div id="team2-name-edit" class="team-name-edit hidden">
+          <input type="text" id="team2-name-input" placeholder="Nom de l'équipe" maxlength="20" autocomplete="off">
+          <button class="btn btn-team2" style="padding:0.4rem 0.8rem;font-size:0.8rem;" onclick="saveTeamName('team2')">✅</button>
+        </div>
         <div class="token-display">🪙 <span id="lobby-t2-tokens">16</span> jetons</div>
         <div id="lobby-team2-players" class="player-list"></div>
         <button class="btn btn-team2" onclick="chooseTeam('team2')">Rejoindre cette équipe</button>
@@ -75,6 +104,10 @@
   <div class="game-container">
     <div class="game-header">
       <span class="round-badge">Manche <span id="q-round"></span></span>
+      <div class="timer-wrap">
+        <div id="q-timer-text" class="timer-text">60</div>
+        <div class="timer-bar"><div id="q-timer-fill" class="timer-fill"></div></div>
+      </div>
       <div class="token-row">
         <span class="token-pill my-team">🪙 <span id="q-my-tokens"></span></span>
         <span class="vs-sep">VS</span>
@@ -104,8 +137,8 @@
     </div>
 
     <div id="q-team-status" class="team-status-row">
-      <div id="q-status-t1" class="team-status-item">🔵 Équipe 1 : <span>en cours...</span></div>
-      <div id="q-status-t2" class="team-status-item">🔴 Équipe 2 : <span>en cours...</span></div>
+      <div id="q-status-t1" class="team-status-item">🔵 <span id="q-status-t1-name">Équipe 1</span> : <span>en cours...</span></div>
+      <div id="q-status-t2" class="team-status-item">🔴 <span id="q-status-t2-name">Équipe 2</span> : <span>en cours...</span></div>
     </div>
     <div id="q-submitted-msg" class="submitted-overlay hidden">
       <div class="submitted-card">
@@ -123,6 +156,10 @@
   <div class="game-container">
     <div class="game-header">
       <span class="round-badge">Manche <span id="v-round"></span></span>
+      <div class="timer-wrap">
+        <div id="v-timer-text" class="timer-text">60</div>
+        <div class="timer-bar"><div id="v-timer-fill" class="timer-fill"></div></div>
+      </div>
       <div class="token-row">
         <span class="token-pill my-team">🪙 <span id="v-my-tokens"></span> jetons à miser</span>
       </div>
@@ -169,13 +206,13 @@
 
     <div class="results-grid">
       <div class="result-block" id="result-team1-block">
-        <div class="result-block-header">🔵 Question de l'Équipe 1 <span class="voted-by">(votée par 🔴)</span></div>
+        <div class="result-block-header">🔵 <span class="r-t1-label">Équipe 1</span> <span class="voted-by">(votée par 🔴)</span></div>
         <div class="result-question" id="r-q1-question"></div>
         <div id="r-q1-answers" class="result-answers"></div>
         <div class="result-summary" id="r-q1-summary"></div>
       </div>
       <div class="result-block" id="result-team2-block">
-        <div class="result-block-header">🔴 Question de l'Équipe 2 <span class="voted-by">(votée par 🔵)</span></div>
+        <div class="result-block-header">🔴 <span class="r-t2-label">Équipe 2</span> <span class="voted-by">(votée par 🔵)</span></div>
         <div class="result-question" id="r-q2-question"></div>
         <div id="r-q2-answers" class="result-answers"></div>
         <div class="result-summary" id="r-q2-summary"></div>
@@ -196,15 +233,28 @@
     <h1 id="go-title"></h1>
     <p id="go-subtitle"></p>
     <div class="go-tokens">
-      <div class="go-token-item team1-color">🔵 Équipe 1 : <span id="go-t1-tokens"></span> 🪙</div>
-      <div class="go-token-item team2-color">🔴 Équipe 2 : <span id="go-t2-tokens"></span> 🪙</div>
+      <div class="go-token-item team1-color">🔵 <span id="go-t1-name">Équipe 1</span> : <span id="go-t1-tokens"></span> 🪙</div>
+      <div class="go-token-item team2-color">🔴 <span id="go-t2-name">Équipe 2</span> : <span id="go-t2-tokens"></span> 🪙</div>
     </div>
     <button id="restart-btn" class="btn btn-primary btn-large hidden" onclick="restartGame()">🔄 Rejouer</button>
     <p id="wait-restart-msg" class="hint hidden">⏳ En attente que le créateur relance...</p>
   </div>
 </div>
 
+<!-- ===== REACTION BAR (fixed bottom, shown during game) ===== -->
+<div id="reaction-bar" class="reaction-bar hidden">
+  <button class="reaction-btn" onclick="sendReaction('😂')">😂</button>
+  <button class="reaction-btn" onclick="sendReaction('🤯')">🤯</button>
+  <button class="reaction-btn" onclick="sendReaction('💀')">💀</button>
+  <button class="reaction-btn" onclick="sendReaction('👏')">👏</button>
+  <button class="reaction-btn" onclick="sendReaction('🔥')">🔥</button>
+</div>
+
+<!-- Floating reactions container -->
+<div id="reactions-container" aria-hidden="true"></div>
+
 <script src="/socket.io/socket.io.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

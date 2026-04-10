@@ -8,6 +8,10 @@ const S = {
   roomCode: '',
   isCreator: false,
   roomState: null,
+  myAvatar: '🎩',
+  teamNames: { team1: 'Équipe 1', team2: 'Équipe 2' },
+  timerDuration: 60,
+  timerInterval: null,
   // question phase
   currentQuestion: '',
   currentRealAnswer: '',
@@ -21,9 +25,14 @@ const S = {
 };
 
 // === UTILS ===
+const GAME_VIEWS = ['question-view', 'voting-view', 'results-view', 'gameover-view'];
+
 function showView(id) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+  // Show reaction bar only during gameplay
+  const bar = document.getElementById('reaction-bar');
+  if (bar) bar.classList.toggle('hidden', !GAME_VIEWS.includes(id));
 }
 
 function showError(id, msg) {
@@ -37,6 +46,80 @@ function showError(id, msg) {
 function hideError(id) {
   const el = document.getElementById(id);
   if (el) el.classList.add('hidden');
+}
+
+// === TIMER ===
+function startTimer(duration, textId, fillId) {
+  stopTimer();
+  let remaining = duration;
+  const textEl = document.getElementById(textId);
+  const fillEl = document.getElementById(fillId);
+  if (!textEl || !fillEl) return;
+
+  function tick() {
+    if (remaining < 0) remaining = 0;
+    textEl.textContent = remaining;
+    const pct = (remaining / duration) * 100;
+    fillEl.style.width = pct + '%';
+    // Color transitions
+    if (remaining <= 10) {
+      fillEl.style.background = 'var(--red)';
+      fillEl.style.boxShadow = '0 0 10px rgba(248,113,113,0.6)';
+      textEl.style.color = 'var(--red)';
+    } else if (remaining <= 20) {
+      fillEl.style.background = 'var(--gold)';
+      fillEl.style.boxShadow = '0 0 10px var(--gold-glow)';
+      textEl.style.color = 'var(--gold)';
+    } else {
+      fillEl.style.background = 'var(--purple-light)';
+      fillEl.style.boxShadow = '0 0 10px var(--purple-glow)';
+      textEl.style.color = 'var(--text)';
+    }
+    if (remaining === 0) { stopTimer(); return; }
+    remaining--;
+  }
+
+  tick();
+  S.timerInterval = setInterval(tick, 1000);
+}
+
+function stopTimer() {
+  if (S.timerInterval) { clearInterval(S.timerInterval); S.timerInterval = null; }
+}
+
+// === ANIMATED COUNTER ===
+function animateCounter(el, from, to, duration = 800) {
+  if (!el || from === to) { if (el) el.textContent = to; return; }
+  const start = performance.now();
+  const diff = to - from;
+  function step(now) {
+    const t = Math.min((now - start) / duration, 1);
+    const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+    el.textContent = Math.round(from + diff * ease);
+    if (t < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// === REACTIONS ===
+function sendReaction(emoji) {
+  socket.emit('sendReaction', { emoji });
+}
+
+function showReaction(emoji, playerName, avatar) {
+  const container = document.getElementById('reactions-container');
+  if (!container) return;
+
+  const el = document.createElement('div');
+  el.className = 'floating-reaction';
+  // Random horizontal position
+  const left = 10 + Math.random() * 80;
+  el.style.left = left + '%';
+  el.innerHTML = `<span class="float-avatar">${avatar || '🎩'}</span><span class="float-emoji">${emoji}</span>`;
+  container.appendChild(el);
+
+  // Clean up after animation
+  setTimeout(() => el.remove(), 2800);
 }
 
 // === HOME ===
@@ -80,6 +163,11 @@ document.addEventListener('DOMContentLoaded', () => {
       else createRoom();
     }
   });
+  // Enter to save team name
+  ['team1', 'team2'].forEach(team => {
+    const inp = document.getElementById(`${team}-name-input`);
+    if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter') saveTeamName(team); });
+  });
 });
 
 // === LOBBY ===
@@ -99,11 +187,56 @@ function startGame() {
   socket.emit('startGame');
 }
 
+function editTeamName(team) {
+  if (S.team !== team) return; // Only team members can rename
+  const editDiv = document.getElementById(`${team}-name-edit`);
+  const inp = document.getElementById(`${team}-name-input`);
+  if (!editDiv || !inp) return;
+  const currentName = S.teamNames[team].replace(/^[🔵🔴]\s*/, '');
+  inp.value = currentName;
+  editDiv.classList.remove('hidden');
+  inp.focus();
+}
+
+function saveTeamName(team) {
+  const inp = document.getElementById(`${team}-name-input`);
+  if (!inp) return;
+  const name = inp.value.trim();
+  if (!name) return;
+  socket.emit('setTeamName', { team, name });
+  document.getElementById(`${team}-name-edit`).classList.add('hidden');
+}
+
+function setTimerDuration(duration) {
+  socket.emit('setTimerDuration', { duration });
+  // Optimistic UI update
+  document.querySelectorAll('.timer-opt').forEach(btn => {
+    btn.classList.toggle('active', parseInt(btn.dataset.dur) === duration);
+  });
+}
+
 function renderLobby(roomState) {
   S.roomState = roomState;
   document.getElementById('room-code-text').textContent = S.roomCode;
   document.getElementById('lobby-t1-tokens').textContent = roomState.teams.team1.tokens;
   document.getElementById('lobby-t2-tokens').textContent = roomState.teams.team2.tokens;
+
+  // Team names
+  if (roomState.teamNames) {
+    S.teamNames = roomState.teamNames;
+    document.getElementById('lobby-team1-name').textContent = '🔵 ' + roomState.teamNames.team1;
+    document.getElementById('lobby-team2-name').textContent = '🔴 ' + roomState.teamNames.team2;
+  }
+
+  // Timer setting
+  if (roomState.timerDuration) {
+    S.timerDuration = roomState.timerDuration;
+    document.querySelectorAll('.timer-opt').forEach(btn => {
+      btn.classList.toggle('active', parseInt(btn.dataset.dur) === roomState.timerDuration);
+    });
+    const displayVal = document.getElementById('timer-display-val');
+    if (displayVal) displayVal.textContent = roomState.timerDuration >= 60 ? (roomState.timerDuration / 60) + 'min' : roomState.timerDuration + 's';
+  }
 
   renderTeamPlayers('lobby-team1-players', roomState.teams.team1.players, roomState.creatorId);
   renderTeamPlayers('lobby-team2-players', roomState.teams.team2.players, roomState.creatorId);
@@ -114,6 +247,18 @@ function renderLobby(roomState) {
 
   document.getElementById('start-btn').classList.toggle('hidden', !isCreator);
   document.getElementById('wait-start-msg').classList.toggle('hidden', isCreator);
+
+  // Show timer setting for creator, timer display for others
+  const timerSetting = document.getElementById('timer-setting');
+  const timerDisplay = document.getElementById('timer-display');
+  if (timerSetting) timerSetting.classList.toggle('hidden', !isCreator);
+  if (timerDisplay) timerDisplay.classList.toggle('hidden', isCreator);
+
+  // Show/hide edit buttons (only for own team members)
+  ['team1', 'team2'].forEach(t => {
+    const btn = document.getElementById(`edit-${t}-btn`);
+    if (btn) btn.classList.toggle('hidden', S.team !== t);
+  });
 }
 
 function renderTeamPlayers(containerId, players, creatorId) {
@@ -126,9 +271,23 @@ function renderTeamPlayers(containerId, players, creatorId) {
   players.forEach(p => {
     const chip = document.createElement('div');
     chip.className = 'player-chip' + (p.id === S.socketId ? ' is-me' : '');
-    chip.innerHTML = `<span>${p.id === S.socketId ? '👤' : '🎩'} ${p.name}${p.id === S.socketId ? ' (toi)' : ''}</span>${p.id === creatorId ? '<span class="creator-badge">👑 créateur</span>' : ''}`;
+    const avatar = p.avatar || '🎩';
+    chip.innerHTML = `<span class="chip-avatar">${avatar}</span><span>${p.name}${p.id === S.socketId ? ' (toi)' : ''}</span>${p.id === creatorId ? '<span class="creator-badge">👑</span>' : ''}`;
     el.appendChild(chip);
   });
+}
+
+// === TEAM NAME ===
+function updateTeamNameUI(team, name) {
+  S.teamNames[team] = name;
+  const prefix = team === 'team1' ? '🔵 ' : '🔴 ';
+  const h3 = document.getElementById(`lobby-${team}-name`);
+  if (h3) h3.textContent = prefix + name;
+  // Update status row labels
+  const statusEl = document.getElementById(`q-status-${team === 'team1' ? 't1' : 't2'}-name`);
+  if (statusEl) statusEl.textContent = name;
+  // Update results labels
+  document.querySelectorAll(`.r-${team === 'team1' ? 't1' : 't2'}-label`).forEach(el => el.textContent = name);
 }
 
 // === QUESTION PHASE ===
@@ -144,6 +303,7 @@ function submitFakeAnswers() {
   const a2 = document.getElementById('fake2').value.trim();
   if (!a1 || !a2) { showError('q-error', '✏️ Écris tes 2 fausses réponses !'); return; }
   S.teamSubmitted = true;
+  stopTimer();
   socket.emit('submitFakeAnswers', { answer1: a1, answer2: a2 });
   document.getElementById('q-submitted-msg').classList.remove('hidden');
 }
@@ -153,6 +313,8 @@ function renderQuestionPhase(data) {
   S.myTokens = data.myTokens;
   S.oppTokens = data.oppTokens;
   S.teamSubmitted = false;
+  if (data.teamNames) S.teamNames = data.teamNames;
+  if (data.timerDuration) S.timerDuration = data.timerDuration;
 
   document.getElementById('q-round').textContent = data.round;
   document.getElementById('q-my-tokens').textContent = data.myTokens;
@@ -160,8 +322,11 @@ function renderQuestionPhase(data) {
   document.getElementById('q-question').textContent = data.question;
   document.getElementById('q-real-answer').textContent = data.realAnswer || data.answer || '';
 
-  // Store for reference (server sends question + answer)
-  S.currentQuestion = data.question;
+  // Team name labels in status row
+  const t1name = document.getElementById('q-status-t1-name');
+  const t2name = document.getElementById('q-status-t2-name');
+  if (t1name) t1name.textContent = S.teamNames.team1;
+  if (t2name) t2name.textContent = S.teamNames.team2;
 
   // Reset UI
   document.getElementById('fake1').value = '';
@@ -172,10 +337,13 @@ function renderQuestionPhase(data) {
   // Reset status
   document.getElementById('q-status-t1').classList.remove('done');
   document.getElementById('q-status-t2').classList.remove('done');
-  document.getElementById('q-status-t1').querySelector('span').textContent = 'en cours...';
-  document.getElementById('q-status-t2').querySelector('span').textContent = 'en cours...';
+  document.getElementById('q-status-t1').querySelector('span:last-child').textContent = 'en cours...';
+  document.getElementById('q-status-t2').querySelector('span:last-child').textContent = 'en cours...';
 
   showView('question-view');
+
+  // Start countdown timer
+  startTimer(S.timerDuration, 'q-timer-text', 'q-timer-fill');
 }
 
 // === VOTING PHASE ===
@@ -184,6 +352,8 @@ function renderVotingPhase(data) {
   S.myTokens = data.myTokens;
   S.bets = [0, 0, 0];
   S.teamSubmitted = false;
+  if (data.teamNames) S.teamNames = data.teamNames;
+  if (data.timerDuration) S.timerDuration = data.timerDuration;
 
   document.getElementById('v-round').textContent = S.currentRound;
   document.getElementById('v-my-tokens').textContent = data.myTokens;
@@ -215,6 +385,9 @@ function renderVotingPhase(data) {
   hideError('v-error');
 
   showView('voting-view');
+
+  // Start countdown timer
+  startTimer(S.timerDuration, 'v-timer-text', 'v-timer-fill');
 }
 
 function updateBetInput(idx) {
@@ -252,6 +425,7 @@ function submitBets() {
   const total = S.bets.reduce((s, b) => s + b, 0);
   if (total !== S.myTokens) { showError('v-error', `⚖️ Mise exactement ${S.myTokens} jetons (actuellement ${total})`); return; }
   S.teamSubmitted = true;
+  stopTimer();
   socket.emit('submitBets', { bets: S.bets });
   document.getElementById('v-submitted-msg').classList.remove('hidden');
   document.getElementById('confirm-bets-btn').disabled = true;
@@ -259,9 +433,20 @@ function submitBets() {
 
 // === RESULTS ===
 function renderResults(data) {
+  stopTimer();
+  if (data.teamNames) S.teamNames = data.teamNames;
+
+  // Animate token counters
+  const t1El = document.getElementById('r-t1-tokens');
+  const t2El = document.getElementById('r-t2-tokens');
+  animateCounter(t1El, S.myTokens, data.tokens.team1);
+  animateCounter(t2El, S.oppTokens !== undefined ? S.oppTokens : data.tokens.team2, data.tokens.team2);
+
   document.getElementById('r-round').textContent = data.round;
-  document.getElementById('r-t1-tokens').textContent = data.tokens.team1;
-  document.getElementById('r-t2-tokens').textContent = data.tokens.team2;
+
+  // Update team name labels in results
+  document.querySelectorAll('.r-t1-label').forEach(el => el.textContent = S.teamNames.team1);
+  document.querySelectorAll('.r-t2-label').forEach(el => el.textContent = S.teamNames.team2);
 
   renderResultBlock('r-q1', data.team1Data);
   renderResultBlock('r-q2', data.team2Data);
@@ -272,6 +457,13 @@ function renderResults(data) {
   document.getElementById('wait-next-msg').classList.toggle('hidden', isCreator || data.isGameOver);
 
   showView('results-view');
+
+  // Confetti for the team that kept more tokens
+  const myTeamKept = S.team === 'team1' ? data.tokens.team1 : data.tokens.team2;
+  const oppKept = S.team === 'team1' ? data.tokens.team2 : data.tokens.team1;
+  if (myTeamKept > oppKept) {
+    setTimeout(() => launchConfetti(), 400);
+  }
 }
 
 function renderResultBlock(prefix, teamData) {
@@ -297,8 +489,9 @@ function renderResultBlock(prefix, teamData) {
   const lost = teamData.prevTokens - kept;
   const summaryEl = document.getElementById(`${prefix}-summary`);
   const votingEmoji = teamData.votingTeam === 'team1' ? '🔵' : '🔴';
+  const votingName = S.teamNames[teamData.votingTeam];
   summaryEl.innerHTML = `
-    <div style="color:var(--text-muted);font-size:0.8rem">${votingEmoji} Équipe ${teamData.votingTeam === 'team1' ? '1' : '2'} votait ici</div>
+    <div style="color:var(--text-muted);font-size:0.8rem">${votingEmoji} ${votingName} votait ici</div>
     <div class="tokens-change ${kept === 0 ? 'tokens-lost' : (lost === 0 ? 'tokens-kept' : '')}">
       ${teamData.prevTokens} 🪙 → ${kept} 🪙 ${lost > 0 ? `<span style="color:var(--red)">(-${lost})</span>` : '<span style="color:var(--green)">(tout gardé !)</span>'}
     </div>
@@ -310,23 +503,46 @@ function nextRound() {
   socket.emit('nextRound');
 }
 
+// === CONFETTI ===
+function launchConfetti() {
+  if (typeof confetti === 'undefined') return;
+  confetti({ particleCount: 120, spread: 80, origin: { y: 0.55 }, colors: ['#f5c518', '#a78bfa', '#4ade80', '#38bdf8', '#fb7185'] });
+  setTimeout(() => confetti({ particleCount: 60, spread: 120, origin: { y: 0.4 }, angle: 60 }), 350);
+  setTimeout(() => confetti({ particleCount: 60, spread: 120, origin: { y: 0.4 }, angle: 120 }), 350);
+}
+
 // === GAME OVER ===
 function renderGameOver(data) {
-  const winnerName = data.winner === 'team1' ? '🔵 Équipe 1' : '🔴 Équipe 2';
-  const loserName = data.winner === 'team1' ? '🔴 Équipe 2' : '🔵 Équipe 1';
+  stopTimer();
+  if (data.teamNames) S.teamNames = data.teamNames;
 
-  document.getElementById('go-emoji').textContent = data.winner === 'team1' ? '🏆' : '🏆';
+  const winnerKey = data.winner;
+  const loserKey = winnerKey === 'team1' ? 'team2' : 'team1';
+  const winnerName = (winnerKey === 'team1' ? '🔵 ' : '🔴 ') + S.teamNames[winnerKey];
+  const loserName = (loserKey === 'team1' ? '🔵 ' : '🔴 ') + S.teamNames[loserKey];
+
+  document.getElementById('go-emoji').textContent = '🏆';
   document.getElementById('go-title').textContent = `${winnerName} gagne !`;
   document.getElementById('go-subtitle').textContent = `${loserName} a perdu tous ses jetons ! 🪦`;
 
   document.getElementById('go-t1-tokens').textContent = data.tokens.team1;
   document.getElementById('go-t2-tokens').textContent = data.tokens.team2;
+  document.getElementById('go-t1-name').textContent = S.teamNames.team1;
+  document.getElementById('go-t2-name').textContent = S.teamNames.team2;
 
   const isCreator = data.creatorId === S.socketId;
   document.getElementById('restart-btn').classList.toggle('hidden', !isCreator);
   document.getElementById('wait-restart-msg').classList.toggle('hidden', isCreator);
 
   showView('gameover-view');
+
+  // Confetti if we won
+  if (S.team === winnerKey) {
+    setTimeout(() => {
+      launchConfetti();
+      setTimeout(launchConfetti, 800);
+    }, 300);
+  }
 }
 
 function restartGame() {
@@ -338,21 +554,24 @@ socket.on('connect', () => {
   S.socketId = socket.id;
 });
 
-socket.on('roomCreated', ({ code, roomState }) => {
+socket.on('roomCreated', ({ code, roomState, myAvatar }) => {
   S.roomCode = code;
   S.isCreator = true;
+  if (myAvatar) S.myAvatar = myAvatar;
+  if (roomState.teamNames) S.teamNames = roomState.teamNames;
   renderLobby(roomState);
   showView('lobby-view');
 });
 
-socket.on('roomJoined', ({ roomState }) => {
+socket.on('roomJoined', ({ roomState, myAvatar }) => {
   S.isCreator = roomState.creatorId === S.socketId;
+  if (myAvatar) S.myAvatar = myAvatar;
+  if (roomState.teamNames) S.teamNames = roomState.teamNames;
   renderLobby(roomState);
   showView('lobby-view');
 });
 
 socket.on('error', ({ message }) => {
-  // Show in whichever error area is relevant
   const activeView = document.querySelector('.view.active');
   if (!activeView) return;
   const errEl = activeView.querySelector('.error-msg');
@@ -382,24 +601,38 @@ socket.on('newCreator', ({ socketId }) => {
     renderLobby(S.roomState);
   }
   if (S.isCreator) {
-    const btn = document.getElementById('start-btn');
-    if (btn) btn.classList.remove('hidden');
-    const msg = document.getElementById('wait-start-msg');
-    if (msg) msg.classList.add('hidden');
-    const nb = document.getElementById('next-round-btn');
-    if (nb) nb.classList.remove('hidden');
-    const wn = document.getElementById('wait-next-msg');
-    if (wn) wn.classList.add('hidden');
-    const rb = document.getElementById('restart-btn');
-    if (rb) rb.classList.remove('hidden');
-    const wr = document.getElementById('wait-restart-msg');
-    if (wr) wr.classList.add('hidden');
+    ['start-btn', 'next-round-btn', 'restart-btn'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('hidden');
+    });
+    ['wait-start-msg', 'wait-next-msg', 'wait-restart-msg'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('hidden');
+    });
   }
 });
 
+socket.on('teamNameUpdate', ({ team, name }) => {
+  updateTeamNameUI(team, name);
+  // Update timer display if needed
+  const displayVal = document.getElementById('timer-display-val');
+  // (no change needed for name update)
+});
+
+socket.on('timerDurationUpdate', ({ duration }) => {
+  S.timerDuration = duration;
+  document.querySelectorAll('.timer-opt').forEach(btn => {
+    btn.classList.toggle('active', parseInt(btn.dataset.dur) === duration);
+  });
+  const displayVal = document.getElementById('timer-display-val');
+  if (displayVal) displayVal.textContent = duration >= 60 ? (duration / 60) + 'min' : duration + 's';
+});
+
+socket.on('reaction', ({ emoji, playerName, avatar }) => {
+  showReaction(emoji, playerName, avatar);
+});
+
 socket.on('questionPhase', (data) => {
-  // Server sends question + answer for this team's question
-  // We need to display the real answer so the team knows it
   renderQuestionPhase(data);
 });
 
@@ -417,7 +650,7 @@ socket.on('teamSubmittedAnswers', ({ team, roomState }) => {
   const el = document.getElementById(key);
   if (el) {
     el.classList.add('done');
-    el.querySelector('span').textContent = 'soumis ✅';
+    el.querySelector('span:last-child').textContent = 'soumis ✅';
   }
 });
 
@@ -442,7 +675,7 @@ socket.on('betsSync', ({ bets }) => {
 });
 
 socket.on('teamSubmittedBets', ({ team }) => {
-  // Could show a UI indicator, but voting-submitted-msg handles own team
+  // Could show a UI indicator
 });
 
 socket.on('roundResults', (data) => {
@@ -451,6 +684,7 @@ socket.on('roundResults', (data) => {
       winner: data.winner,
       tokens: data.tokens,
       creatorId: data.creatorId,
+      teamNames: data.teamNames,
     });
   } else {
     renderResults(data);
@@ -458,14 +692,14 @@ socket.on('roundResults', (data) => {
 });
 
 socket.on('gameRestarted', ({ roomState }) => {
+  stopTimer();
   S.team = null;
-  // Find which team we were in
-  const allTeams = { ...roomState.teams };
   for (const t of ['team1', 'team2']) {
-    if (allTeams[t].players.some(p => p.id === S.socketId)) {
+    if (roomState.teams[t].players.some(p => p.id === S.socketId)) {
       S.team = t;
     }
   }
+  if (roomState.teamNames) S.teamNames = roomState.teamNames;
   renderLobby(roomState);
   showView('lobby-view');
 });

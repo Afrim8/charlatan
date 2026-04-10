@@ -791,6 +791,190 @@ input[type="text"]::placeholder { color: var(--text-muted); }
 ::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
+/* === TIMER === */
+.timer-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 64px;
+}
+
+.timer-text {
+  font-family: 'Cinzel', serif;
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: var(--text);
+  line-height: 1;
+  transition: color 0.3s;
+}
+
+.timer-bar {
+  width: 64px;
+  height: 5px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.timer-fill {
+  height: 100%;
+  width: 100%;
+  background: var(--purple-light);
+  border-radius: 3px;
+  box-shadow: 0 0 10px var(--purple-glow);
+  transition: width 0.9s linear, background 0.3s, box-shadow 0.3s;
+}
+
+/* === TEAM NAME EDITING === */
+.team-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.btn-edit-name {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0.2rem 0.4rem;
+  border-radius: 6px;
+  opacity: 0.6;
+  transition: opacity 0.15s, background 0.15s;
+  line-height: 1;
+}
+.btn-edit-name:hover { opacity: 1; background: var(--border-bright); }
+
+.team-name-edit {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.team-name-edit input[type="text"] {
+  flex: 1;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.9rem;
+  min-height: 36px;
+}
+
+/* === TIMER SETTING (lobby) === */
+.timer-setting, .timer-display-lobby {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.timer-setting-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.timer-btns {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.timer-opt {
+  padding: 0.3rem 0.7rem;
+  border-radius: 8px;
+  border: 1.5px solid var(--border-bright);
+  background: var(--surface2);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.timer-opt:hover { border-color: var(--purple-light); color: var(--purple-light); }
+.timer-opt.active {
+  border-color: var(--gold);
+  background: var(--gold-glow);
+  color: var(--gold);
+  box-shadow: 0 0 8px var(--gold-glow);
+}
+
+/* === REACTION BAR === */
+.reaction-bar {
+  position: fixed;
+  bottom: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border-bright);
+  border-radius: 50px;
+  padding: 0.5rem 0.8rem;
+  box-shadow: var(--shadow-sm), 0 0 0 1px rgba(255,255,255,0.04);
+  backdrop-filter: blur(16px);
+  z-index: 100;
+}
+
+.reaction-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.5rem;
+  padding: 0.25rem 0.35rem;
+  border-radius: 10px;
+  line-height: 1;
+  transition: transform 0.12s ease, background 0.12s;
+}
+.reaction-btn:hover { background: var(--border-bright); transform: scale(1.25); }
+.reaction-btn:active { transform: scale(0.9); }
+
+/* === FLOATING REACTIONS === */
+#reactions-container {
+  position: fixed;
+  bottom: 5rem;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  z-index: 99;
+  overflow: hidden;
+  height: 300px;
+}
+
+.floating-reaction {
+  position: absolute;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  animation: floatUp 2.8s ease-out forwards;
+}
+
+.float-avatar {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.float-emoji {
+  font-size: 2rem;
+  line-height: 1;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.4));
+}
+
+@keyframes floatUp {
+  0%   { transform: translateY(0) scale(0.5); opacity: 0; }
+  15%  { transform: translateY(-30px) scale(1.1); opacity: 1; }
+  80%  { transform: translateY(-220px) scale(1); opacity: 0.9; }
+  100% { transform: translateY(-280px) scale(0.8); opacity: 0; }
+}
+
+/* === AVATAR CHIP === */
+.chip-avatar { font-size: 1.1rem; line-height: 1; }
+
 /* === MOBILE === */
 @media (max-width: 480px) {
   h1 { font-size: 2rem; }
